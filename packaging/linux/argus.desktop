@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Argus
+GenericName=Audio Master QA
+Comment=Catch glitches, clipping and loudness/true-peak issues in audio masters
+Exec=argus-gui %F
+Icon=argus
+Terminal=false
+Categories=AudioVideo;Audio;
+MimeType=audio/x-wav;audio/x-aiff;audio/x-flac;audio/mpeg;audio/mp4;audio/aac;audio/ogg;
+Keywords=audio;QA;mastering;loudness;LUFS;spectrogram;

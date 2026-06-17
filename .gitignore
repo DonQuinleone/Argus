@@ -1,0 +1,23 @@
+# Build output
+/build/
+build/
+build-verify/
+build-deb/
+build-rpm/
+build-appimage/
+
+# Packaging output
+/dist/
+packaging/windows/stage/
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+
+# Local Claude Code settings (machine-specific paths)
+.claude/settings.local.json
+
+# Icon build intermediates (the .icns/.ico/.png masters are committed)
+src/ui/resources/argus.iconset/
