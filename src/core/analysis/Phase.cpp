@@ -50,6 +50,9 @@ void analyzePhase(const AudioBuffer& buf, std::vector<Issue>& out) {
     is.check = "Phase / mono";
     is.field("Correlation", fmt(corr, 3))
         .field("Out-of-phase time", fmt(outPct, 1) + " %");
+    // For surround / Atmos this measures only the front L/R pair (channels 0/1).
+    const bool frontPairOnly = buf.channels > 2;
+    if (frontPairOnly) is.field("Scope", "front L/R pair (ch 0/1)");
 
     if (identical) {
         is.severity = Severity::Info;

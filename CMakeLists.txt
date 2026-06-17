@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 # CFBundleShortVersionString needs a clean X.Y.Z; the full describe string
 # (which may include a commit count / hash / -dirty) is used for the build id.
 # ---------------------------------------------------------------------------
-set(ARGUS_VERSION_FALLBACK "1.0.0")
+set(ARGUS_VERSION_FALLBACK "1.1.0")
 set(ARGUS_VERSION "${ARGUS_VERSION_FALLBACK}")
 set(ARGUS_VERSION_FULL "${ARGUS_VERSION_FALLBACK}")
 find_package(Git QUIET)
@@ -67,6 +67,8 @@ add_library(argus_core STATIC
     src/core/Report.cpp
     src/core/Engine.cpp
     src/core/Profile.cpp
+    src/core/ProfileStore.cpp
+    src/core/ChannelLayout.cpp
     src/core/dsp/Envelope.cpp
     src/core/dsp/Fft.cpp
     src/core/analysis/Metadata.cpp
@@ -83,8 +85,10 @@ add_library(argus_core STATIC
     src/core/export/EmbeddedFonts.cpp
     src/core/export/EmbeddedLogo.cpp
     src/core/export/JsonExport.cpp
+    src/core/export/PngExport.cpp
 )
 target_include_directories(argus_core PUBLIC src)
+target_include_directories(argus_core PRIVATE third_party/stb)
 target_compile_definitions(argus_core PUBLIC ARGUS_VERSION="${ARGUS_VERSION_FULL}")
 
 # ---------------------------------------------------------------------------
