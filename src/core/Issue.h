@@ -27,6 +27,10 @@ struct Issue {
     double tStart = -1.0;  // seconds, -1 = not time-localised
     double tEnd = -1.0;
 
+    // Extra point-in-time markers for a finding that recurs (e.g. every click). Drawn on
+    // the spectrogram/waveform in addition to tStart. Empty for single-region findings.
+    std::vector<double> marks;
+
     // Technical key/value pairs shown in the engineer-facing table.
     std::vector<std::pair<std::string, std::string>> fields;
 

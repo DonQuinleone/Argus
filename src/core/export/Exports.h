@@ -31,4 +31,8 @@ bool exportReportJson(const Report& rep, const std::string& path, const ReportIn
 bool exportBatchJson(const std::vector<Report>& reps, const std::string& path,
                      const ReportInfo& info = {});
 
+// PNG of the rendered spectrogram raster (the same RGBA8 image shown in the app).
+// Requires a report produced by analyzeFileFull (raster populated); false otherwise.
+bool exportSpectrogramPng(const Report& rep, const std::string& path);
+
 }  // namespace argus

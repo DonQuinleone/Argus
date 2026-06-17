@@ -16,10 +16,12 @@
 - (void)exportPdf:(id)sender;
 - (void)exportCsv:(id)sender;
 - (void)exportJson:(id)sender;
+- (void)exportSpecPng:(id)sender;
 - (void)exportAll:(id)sender;
 - (void)exportBatchPdf:(id)sender;
 - (void)toggleSettings:(id)sender;
 - (void)toggleReportInfo:(id)sender;
+- (void)toggleProfiles:(id)sender;
 - (void)toggleTheme:(id)sender;
 - (void)quit:(id)sender;
 @end
@@ -30,10 +32,12 @@
 - (void)exportPdf:(id)sender { if (cb.exportPdf) cb.exportPdf(); }
 - (void)exportCsv:(id)sender { if (cb.exportCsv) cb.exportCsv(); }
 - (void)exportJson:(id)sender { if (cb.exportJson) cb.exportJson(); }
+- (void)exportSpecPng:(id)sender { if (cb.exportSpecPng) cb.exportSpecPng(); }
 - (void)exportAll:(id)sender { if (cb.exportAll) cb.exportAll(); }
 - (void)exportBatchPdf:(id)sender { if (cb.exportBatchPdf) cb.exportBatchPdf(); }
 - (void)toggleSettings:(id)sender { if (cb.toggleSettings) cb.toggleSettings(); }
 - (void)toggleReportInfo:(id)sender { if (cb.toggleReportInfo) cb.toggleReportInfo(); }
+- (void)toggleProfiles:(id)sender { if (cb.toggleProfiles) cb.toggleProfiles(); }
 - (void)toggleTheme:(id)sender { if (cb.toggleTheme) cb.toggleTheme(); }
 - (void)quit:(id)sender {
     if (cb.quit)
@@ -54,6 +58,71 @@ std::string macResourcePath(const std::string& name) {
         return path ? std::string([path UTF8String]) : std::string();
     }
 }
+
+// allowedFileTypes is deprecated (macOS 12+) in favour of allowedContentTypes/UTType, but
+// it still works and avoids a UniformTypeIdentifiers dependency for our simple extensions.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+static NSArray<NSString*>* toExtArray(const std::vector<std::string>& exts) {
+    if (exts.empty()) return nil;
+    NSMutableArray<NSString*>* a = [NSMutableArray array];
+    for (const auto& e : exts) [a addObject:@(e.c_str())];
+    return a;
+}
+
+std::vector<std::string> macOpenFiles(const std::string& title,
+                                      const std::vector<std::string>& exts, bool multiple) {
+    @autoreleasepool {
+        NSOpenPanel* p = [NSOpenPanel openPanel];
+        [p setCanChooseFiles:YES];
+        [p setCanChooseDirectories:NO];
+        [p setAllowsMultipleSelection:(multiple ? YES : NO)];
+        if (!title.empty()) [p setMessage:@(title.c_str())];
+        NSArray<NSString*>* types = toExtArray(exts);
+        if (types) [p setAllowedFileTypes:types];
+        [NSApp activateIgnoringOtherApps:YES];
+        std::vector<std::string> out;
+        if ([p runModal] == NSModalResponseOK)
+            for (NSURL* u in [p URLs]) out.push_back(std::string([[u path] UTF8String]));
+        return out;
+    }
+}
+
+std::string macOpenFolder(const std::string& title, const std::string& defaultDir) {
+    @autoreleasepool {
+        NSOpenPanel* p = [NSOpenPanel openPanel];
+        [p setCanChooseFiles:NO];
+        [p setCanChooseDirectories:YES];
+        [p setAllowsMultipleSelection:NO];
+        if (!title.empty()) [p setMessage:@(title.c_str())];
+        if (!defaultDir.empty())
+            [p setDirectoryURL:[NSURL fileURLWithPath:@(defaultDir.c_str()) isDirectory:YES]];
+        [NSApp activateIgnoringOtherApps:YES];
+        if ([p runModal] == NSModalResponseOK) return std::string([[[p URL] path] UTF8String]);
+        return std::string();
+    }
+}
+
+std::string macSaveFile(const std::string& title, const std::string& defaultPath,
+                        const std::string& ext) {
+    @autoreleasepool {
+        NSSavePanel* p = [NSSavePanel savePanel];
+        if (!title.empty()) [p setMessage:@(title.c_str())];
+        NSString* def = @(defaultPath.c_str());
+        NSString* fname = [def lastPathComponent];
+        NSString* dir = [def stringByDeletingLastPathComponent];
+        if ([fname length]) [p setNameFieldStringValue:fname];
+        if ([dir length])
+            [p setDirectoryURL:[NSURL fileURLWithPath:dir isDirectory:YES]];
+        if (!ext.empty()) [p setAllowedFileTypes:@[ @(ext.c_str()) ]];
+        [NSApp activateIgnoringOtherApps:YES];
+        if ([p runModal] == NSModalResponseOK) return std::string([[[p URL] path] UTF8String]);
+        return std::string();
+    }
+}
+
+#pragma clang diagnostic pop
 
 // Kept alive for the lifetime of the process (menu retains a raw pointer to it).
 static ArgusMenuTarget* g_target = nil;
@@ -93,29 +162,9 @@ void installMacMenu(const MacMenuCallbacks& cb) {
                 g_target);
         [appBarItem setSubmenu:appMenu];
 
-        // File menu.
-        NSMenuItem* fileBarItem = [[NSMenuItem alloc] init];
-        [bar addItem:fileBarItem];
-        NSMenu* fileMenu = [[NSMenu alloc] initWithTitle:@"File"];
-        addItem(fileMenu, @"Open File...", @selector(openFile:), @"o", g_target);
-        addItem(fileMenu, @"Open Folder...", @selector(openFolder:), @"O", g_target);
-        [fileMenu addItem:[NSMenuItem separatorItem]];
-        addItem(fileMenu, @"Export PDF...", @selector(exportPdf:), @"e", g_target);
-        addItem(fileMenu, @"Export CSV...", @selector(exportCsv:), @"", g_target);
-        addItem(fileMenu, @"Export JSON...", @selector(exportJson:), @"", g_target);
-        [fileMenu addItem:[NSMenuItem separatorItem]];
-        addItem(fileMenu, @"Export All Reports (PDF)...", @selector(exportAll:), @"", g_target);
-        addItem(fileMenu, @"Export Combined Batch PDF...", @selector(exportBatchPdf:), @"", g_target);
-        [fileBarItem setSubmenu:fileMenu];
-
-        // View menu.
-        NSMenuItem* viewBarItem = [[NSMenuItem alloc] init];
-        [bar addItem:viewBarItem];
-        NSMenu* viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
-        addItem(viewMenu, @"Spectrogram Settings", @selector(toggleSettings:), @"", g_target);
-        addItem(viewMenu, @"QA Report Details", @selector(toggleReportInfo:), @"", g_target);
-        addItem(viewMenu, @"Toggle Light / Dark Theme", @selector(toggleTheme:), @"", g_target);
-        [viewBarItem setSubmenu:viewMenu];
+        // No File/View menus: those actions live in the app's own UI now. Only the standard
+        // macOS Application + Window menus remain (the OS always shows a menu bar for the
+        // focused app, and Quit/Hide/Minimise are expected there).
 
         // Window menu (standard).
         NSMenuItem* winBarItem = [[NSMenuItem alloc] init];

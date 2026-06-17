@@ -285,6 +285,32 @@ std::string widthsArray() {
 
 }  // namespace
 
+// A clipping close-up waveform strip with the clip-level lines (drawn natively in PDF).
+static void drawClipWave(Builder& b, const CloseupView& cv, double drawW) {
+    if (cv.waveMax.empty()) return;
+    const double h = 60;
+    b.ensure(h + 8);
+    double x0 = kMargin + 8, y0 = b.yTop;
+    b.fillRect(x0, y0, drawW, h, Rgb{0.07, 0.07, 0.09});
+    double yc = y0 + h / 2, half = h / 2 - 2;
+    const int cols = 220;
+    const int n = static_cast<int>(cv.waveMax.size());
+    for (int i = 0; i < cols; ++i) {
+        int idx = i * n / cols;
+        if (idx >= n) idx = n - 1;
+        double top = yc - cv.waveMax[idx] * half;
+        double bot = yc - cv.waveMin[idx] * half;
+        if (bot < top + 0.4) bot = top + 0.4;
+        b.fillRect(x0 + drawW * i / cols, top, drawW / cols + 0.6, bot - top, Rgb{0.30, 0.55, 0.85});
+    }
+    if (cv.clipLevel > 0) {
+        double cl = cv.clipLevel * half;
+        b.hline(x0, x0 + drawW, yc - cl, Rgb{0.90, 0.31, 0.27}, 0.8);
+        b.hline(x0, x0 + drawW, yc + cl, Rgb{0.90, 0.31, 0.27}, 0.8);
+    }
+    b.yTop = y0 + h + 6;
+}
+
 // Append one report's full body (header, optional logo + QA block, metadata,
 // summary matrix, spectrogram and findings) to the shared builder, starting at
 // the current yTop. Shared by the single-file and combined-batch PDF writers.
@@ -294,24 +320,28 @@ static void renderReportBody(Builder& b, const Report& rep, const ReportInfo& in
     // ---- Header band ----
     b.fillRect(kMargin, b.yTop, contentW, 46, kPanel);
     double textX = kMargin + 10;
-    if (info.showLogo) {
-        const double sz = 34, lx = kMargin + 8, ly = b.yTop + 6;
-        std::string ln = b.addImage(
-            kArgusLogoW, kArgusLogoH,
-            std::string(reinterpret_cast<const char*>(kArgusLogoRGB),
-                        static_cast<std::size_t>(kArgusLogoW) * kArgusLogoH * 3));
-        b.image(ln, lx, ly, sz, sz);
-        textX = lx + sz + 10;
+    // Organisation logo in the header when supplied (Argus branding moves to the footer).
+    if (info.orgLogoW > 0 && info.orgLogoH > 0 &&
+        info.orgLogoRGB.size() >= static_cast<std::size_t>(info.orgLogoW) * info.orgLogoH * 3) {
+        const double h = 34, lx = kMargin + 8, ly = b.yTop + 6;
+        double wpx = h * info.orgLogoW / info.orgLogoH;
+        std::string ln = b.addImage(info.orgLogoW, info.orgLogoH,
+                                    std::string(reinterpret_cast<const char*>(info.orgLogoRGB.data()),
+                                                info.orgLogoRGB.size()));
+        b.image(ln, lx, ly, wpx, h);
+        textX = lx + wpx + 10;
     }
     b.rawText("ARGUS  AUDIO QA", textX, b.yTop + 8, 9, kMuted, true);
     b.rawText(rep.meta.filename, textX, b.yTop + 20, 14, kInk, true);
     {
         Severity v = rep.ok() ? rep.verdict() : Severity::Fail;
-        std::string vt = rep.ok() ? std::string("  ") + severityLabel(v) + "  " : "  DECODE ERROR  ";
-        double bw = Builder::textW(vt, 13) + 6, bh = 22;
-        double bx = kW - kMargin - bw - 10, by = b.yTop + 12;
+        std::string lbl = rep.ok() ? severityLabel(v) : "DECODE ERROR";
+        const double fs = 13, bh = 24;
+        double tw = Builder::textW(lbl, fs);
+        double bw = tw + 28;
+        double bx = kW - kMargin - bw - 10, by = b.yTop + 11;
         b.fillRect(bx, by, bw, bh, severityRgb(v));
-        b.rawText(vt, bx, by + 4, 13, kWhite, true);
+        b.rawText(lbl, bx + (bw - tw) / 2, by + (bh - fs) / 2, fs, kWhite, true);
         std::string sub = fmtInt(rep.count(Severity::Fail)) + " fail / " +
                           fmtInt(rep.count(Severity::Warn)) + " warn";
         b.rawText(sub, kW - kMargin - Builder::textW(sub, 7) - 10, b.yTop + 36, 7, kMuted, false);
@@ -458,9 +488,23 @@ static void renderReportBody(Builder& b, const Report& rep, const ReportInfo& in
 
         if (!is.detail.empty()) b.wrapped(is.detail, kMargin + 8, 8, kMuted);
 
-        // Per-finding close-up.
+        // Diagrams: always for Warn/Fail; for everything else only when "include all
+        // diagrams" is on.
+        const bool wantDiagrams = is.severity >= Severity::Warn || info.allDiagrams;
+
+        // Embed an RGBA raster (goniometer / DC meter) at a given draw width.
+        auto embedRaster = [&](const std::vector<unsigned char>& rgba, int w, int h, double drawW) {
+            if (w <= 0 || h <= 0 || rgba.empty()) return;
+            double drawH = drawW * h / w;
+            b.ensure(drawH + 8);
+            std::string nm = b.addImage(w, h, downsampleRgb(rgba, w, h, w, h));
+            b.image(nm, kMargin + 8, b.yTop, drawW, drawH);
+            b.yTop += drawH + 6;
+        };
+
+        // Per-finding close-up (spectrogram zoom) + clipping waveform.
         if (const CloseupView* cv = rep.closeupFor(static_cast<int>(i))) {
-            if (cv->valid()) {
+            if (cv->valid() && wantDiagrams) {
                 double drawW = contentW * 0.62;
                 double drawH = drawW * cv->height / cv->width;
                 if (drawH > 150) { drawH = 150; drawW = drawH * cv->width / cv->height; }
@@ -471,8 +515,14 @@ static void renderReportBody(Builder& b, const Report& rep, const ReportInfo& in
                 std::vector<Region> reg = {{cv->evStart, cv->evEnd, severityRgb(Severity::Fail)}};
                 drawSpectro(b, nm, drawW + 30, drawH, cv->winStart, cv->winEnd, cv->minFreq,
                             cv->maxFreq, cv->scale, reg, true);
+                if (cv->hasWave) drawClipWave(b, *cv, contentW * 0.62);
             }
         }
+        // Phase goniometer + DC bar meter under their findings.
+        if (wantDiagrams && is.check == "Phase / mono")
+            embedRaster(rep.goniRGBA, rep.goniW, rep.goniH, 210);
+        if (wantDiagrams && is.check == "DC offset")
+            embedRaster(rep.dcMeterRGBA, rep.dcMeterW, rep.dcMeterH, 190);
 
         // Fields as aligned key/value lines (monospace lets us pad cleanly).
         std::size_t kwid = 0;
@@ -495,13 +545,23 @@ static bool writePdf(Builder& b, const std::string& path) {
     std::time_t now = std::time(nullptr);
     char ts[64];
     std::strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", std::localtime(&now));
+    // The Argus logo always appears in the footer (added once, shared across pages).
+    std::string argusLogo =
+        b.addImage(kArgusLogoW, kArgusLogoH,
+                   std::string(reinterpret_cast<const char*>(kArgusLogoRGB),
+                               static_cast<std::size_t>(kArgusLogoW) * kArgusLogoH * 3));
+    const double footY = kMargin - 6;
     for (std::size_t i = 0; i < b.pages.size(); ++i) {
         std::string& pg = b.pages[i];
+        char logo[128];
+        std::snprintf(logo, sizeof(logo), "q 11 0 0 11 %.2f %.2f cm /%s Do Q\n", kMargin,
+                      footY - 2.5, argusLogo.c_str());
+        pg += logo;
         char foot[256];
         std::string left = std::string("argus ") + ARGUS_VERSION + "  -  " + ts;
         std::snprintf(foot, sizeof(foot),
-                      "BT /F1 7 Tf 0.55 0.55 0.6 rg %.2f %.2f Td (%s) Tj ET\n", kMargin,
-                      kH - (kH - kMargin + 6), left.c_str());
+                      "BT /F1 7 Tf 0.55 0.55 0.6 rg %.2f %.2f Td (%s) Tj ET\n", kMargin + 15.0,
+                      footY, left.c_str());
         pg += foot;
         std::string pn = "Page " + fmtInt(static_cast<long long>(i + 1)) + " of " +
                          fmtInt(static_cast<long long>(b.pages.size()));
