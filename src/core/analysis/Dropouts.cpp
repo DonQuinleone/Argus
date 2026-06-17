@@ -9,20 +9,27 @@
 namespace argus {
 namespace {
 
-// A dropout / missing frame interrupts the continuous recording noise floor: the
-// high-frequency band momentarily falls *below* the file's own noise floor (it is
-// replaced by silence / near-zero). Musical pauses never do this - the room/recording
-// noise floor persists. We therefore detect "the HF floor vanished", which both
-// catches the reference defect (CATZ-0010 @ 5.42-5.50s, HF floor drops ~25 dB) and
-// rejects ordinary musical level dips.
+// A dropped / missing frame punches a *broadband hole* in the audio: the full-band level
+// collapses to near the recording floor and snaps back, with abrupt edges. We require all
+// three signatures together, because any one alone is fooled by ordinary music:
+//   1. the high-frequency noise floor vanishes (HF band falls below the file's HF floor),
+//   2. the *full-band* level collapses far below its local baseline (a real hole, not just
+//      missing treble - sustained vowels and reverb tails lose HF while staying loud), and
+//   3. the edges are sharp (the level a few ms either side is much higher), which a smooth
+//      musical decay or reverb tail never is.
+// This catches the reference defect (CATZ-0010, HF floor drops ~25 dB with a broadband hole)
+// while rejecting the HF-only dips that flood acoustic material (e.g. choral masters).
 constexpr double kWinMs = 6.0;             // short window keeps the dropout edges crisp
 constexpr double kHopMs = 5.0;
 constexpr double kHpCutoff = 12000.0;      // isolate the HF noise-floor band (least music here)
 constexpr double kContentDb = -55.0;       // full-band level that counts as "content present"
 constexpr double kFloorDropDb = 13.0;      // HF must fall this far below the noise floor
+constexpr double kBroadbandDropDb = 12.0;  // full-band must collapse this far below its baseline
+constexpr double kEdgeMs = 10.0;           // how far outside the hole we sample for the edge test
+constexpr double kEdgeDropDb = 10.0;       // the level just outside must exceed the hole by this
 constexpr double kMinDurMs = 12.0;
 constexpr double kMaxDurMs = 800.0;
-constexpr double kFailFullDropDb = 18.0;   // also a big broadband drop => Fail
+constexpr double kFailFullDropDb = 18.0;   // a near-total broadband collapse => Fail
 
 inline double db(double lin) { return lin <= 1e-9 ? -180.0 : 20.0 * std::log10(lin); }
 
@@ -104,11 +111,19 @@ void analyzeDropouts(const AudioBuffer& buf, std::vector<Issue>& out) {
         4, static_cast<int>(std::lround(0.400 * buf.sampleRate / full.hop)) / 2);
     std::vector<double> fullBaseline = medianFilter(fullDb, half);
 
+    // A frame belongs to a hole only if the HF floor has vanished *and* the full band has
+    // collapsed well below its local baseline. Requiring the broadband collapse is what
+    // rejects musical HF-only dips (sustained vowels, reverb tails), where the full-band
+    // level barely changes (or even rises) while the treble fades.
     std::vector<char> dip(n, 0);
     for (std::size_t i = 0; i < n; ++i) {
-        if (fullBaseline[i] <= kContentDb) continue;          // surrounded by content
-        if (hfDb[i] < noiseFloor - kFloorDropDb) dip[i] = 1;  // HF floor vanished
+        if (fullBaseline[i] <= kContentDb) continue;             // surrounded by content
+        bool hfGone = hfDb[i] < noiseFloor - kFloorDropDb;       // HF floor vanished
+        bool fullCollapsed = fullDb[i] < fullBaseline[i] - kBroadbandDropDb;  // real hole
+        if (hfGone && fullCollapsed) dip[i] = 1;
     }
+
+    const int edgeFrames = std::max(1, static_cast<int>(std::lround(kEdgeMs / kHopMs)));
 
     const double frameMs = 1000.0 * full.hop / full.sampleRate;
     int events = 0;
@@ -128,6 +143,18 @@ void analyzeDropouts(const AudioBuffer& buf, std::vector<Issue>& out) {
             }
             double hfDrop = noiseFloor - minHf;
             double fullDrop = ctx - minFull;
+
+            // Sharp-edge test: the full-band level a few ms either side of the hole must sit
+            // well above the hole's floor. A dropped frame snaps in/out; a musical decay or
+            // reverb tail ramps gradually and fails this.
+            std::size_t preIdx = i > static_cast<std::size_t>(edgeFrames) ? i - edgeFrames : 0;
+            std::size_t postIdx = std::min(n - 1, (j - 1) + edgeFrames);
+            double preLevel = fullDb[preIdx];
+            double postLevel = fullDb[postIdx];
+            bool sharpEdges = (preLevel - minFull >= kEdgeDropDb) &&
+                              (postLevel - minFull >= kEdgeDropDb);
+            if (!sharpEdges) { i = j; continue; }
+
             double tStart = full.timeAt(i);
             double tEnd = full.timeAt(j - 1);
 

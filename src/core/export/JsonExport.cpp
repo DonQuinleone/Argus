@@ -94,10 +94,78 @@ std::string reportObject(const Report& rep) {
     o += q("durationSec") + ":" + num(rep.meta.durationSec) + ",";
     o += q("frames") + ":" + numi(static_cast<long long>(rep.meta.frames)) + ",";
     o += q("fileBytes") + ":" + numi(static_cast<long long>(rep.meta.fileBytes));
+    const BroadcastInfo& bi = rep.meta.broadcast;
+    if (bi.present) {
+        std::vector<std::string> parts;
+        auto add = [&](const char* k, const std::string& v) {
+            if (!v.empty()) parts.push_back(kv(k, v));
+        };
+        add("description", bi.description);
+        add("originator", bi.originator);
+        add("originatorReference", bi.originatorReference);
+        add("originationDate", bi.originationDate);
+        add("originationTime", bi.originationTime);
+        if (bi.timeReference > 0)
+            parts.push_back(q("timeReference") + ":" + numi(static_cast<long long>(bi.timeReference)));
+        if (bi.version > 0) parts.push_back(q("version") + ":" + numi(bi.version));
+        add("umid", bi.umid);
+        add("codingHistory", bi.codingHistory);
+        if (!bi.ixml.empty()) parts.push_back(q("ixml") + ":true");
+        o += "," + q("broadcast") + ":{";
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            if (i) o += ",";
+            o += parts[i];
+        }
+        o += "}";
+    }
+    const TagInfo& tg = rep.meta.tags;
+    if (tg.any()) {
+        std::vector<std::string> parts;
+        auto add = [&](const char* k, const std::string& v) {
+            if (!v.empty()) parts.push_back(kv(k, v));
+        };
+        add("title", tg.title);
+        add("artist", tg.artist);
+        add("album", tg.album);
+        add("genre", tg.genre);
+        add("track", tg.trackNo);
+        add("date", tg.date);
+        if (!tg.artwork.empty()) {
+            parts.push_back(q("artwork") + ":true");
+            parts.push_back(kv("artworkType", tg.artworkMime));
+        }
+        if (!tg.allTags.empty()) {
+            std::string all = "{";
+            for (std::size_t i = 0; i < tg.allTags.size(); ++i) {
+                if (i) all += ",";
+                all += kv(tg.allTags[i].first, tg.allTags[i].second);
+            }
+            all += "}";
+            parts.push_back(q("all") + ":" + all);
+        }
+        o += "," + q("tags") + ":{";
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            if (i) o += ",";
+            o += parts[i];
+        }
+        o += "}";
+    }
+    // Channel layout + ADM (Dolby Atmos).
+    if (!rep.meta.layoutName.empty()) o += "," + kv("layout", rep.meta.layoutName);
+    const AdmInfo& ad = rep.meta.adm;
+    if (ad.present || ad.hasDbmd) {
+        o += "," + q("adm") + ":{" + q("present") + ":true";
+        if (ad.hasDbmd) o += "," + q("dbmd") + ":true";
+        if (!ad.programme.empty()) o += "," + kv("programme", ad.programme);
+        if (!ad.objects.empty())
+            o += "," + q("objects") + ":" + numi(static_cast<long long>(ad.objects.size()));
+        o += "}";
+    }
     o += "},";
 
     o += q("ok") + ":" + (rep.ok() ? "true" : "false") + ",";
     o += kv("verdict", rep.ok() ? severityLabel(rep.verdict()) : "ERROR") + ",";
+    if (!rep.suggestedProfile.empty()) o += kv("suggestedProfile", rep.suggestedProfile) + ",";
     if (!rep.ok()) o += kv("decodeError", rep.decodeError) + ",";
     o += q("counts") + ":{" + q("fail") + ":" + numi(rep.count(Severity::Fail)) + "," + q("warn") +
          ":" + numi(rep.count(Severity::Warn)) + "," + q("info") + ":" +

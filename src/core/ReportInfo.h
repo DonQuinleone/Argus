@@ -6,6 +6,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace argus {
 
@@ -26,7 +27,17 @@ struct ReportInfo {
     bool showCatalog = true;
     bool showNotes = true;
     bool showDate = true;
-    bool showLogo = true;
+    bool showLogo = true;  // deprecated: Argus branding is now always in the footer
+
+    // Include every diagram (per-finding close-ups, goniometer, DC meter) for all findings,
+    // not only Warn/Fail ones.
+    bool allDiagrams = false;
+
+    // Optional organisation logo, decoded to RGB by the UI. When present it's drawn in the
+    // report header (and the Argus logo moves to the footer).
+    std::string orgLogoPath;
+    std::vector<unsigned char> orgLogoRGB;  // w*h*3
+    int orgLogoW = 0, orgLogoH = 0;
 
     // True if any text field will be rendered (drives whether a QA block is drawn).
     bool anyText() const {

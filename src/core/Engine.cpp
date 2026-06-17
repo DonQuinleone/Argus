@@ -33,6 +33,10 @@ void runAnalyses(const AudioBuffer& buf, Report& rep, const Profile& profile) {
     analyzeSilence(buf, rep.issues);
     analyzePhase(buf, rep.issues);
     analyzeSpectral(buf, rep.issues);
+
+    // Suggest a better-fitting profile when the file's layout doesn't match the active one.
+    rep.suggestedProfile = suggestedProfileName(rep.meta, profile);
+    rep.usedProfileName = profile.name;
 }
 
 }  // namespace
@@ -50,7 +54,8 @@ Report analyzeFile(const std::string& path, const Profile& profile) {
 }
 
 Report analyzeFileFull(const std::string& path, int specWidth, int specHeight,
-                       const SpectrogramSettings& settings, const Profile& profile) {
+                       const SpectrogramSettings& settings, const Profile& profile,
+                       bool autoProfile) {
     Report rep;
     DecodeResult dec = decodeFile(path);
     rep.meta = dec.meta;
@@ -58,14 +63,17 @@ Report analyzeFileFull(const std::string& path, int specWidth, int specHeight,
         rep.decodeError = dec.error;
         return rep;
     }
-    runAnalyses(dec.buffer, rep, profile);
+    // Per-file auto-selection: choose the profile from the detected layout once decoded.
+    const Profile& used = autoProfile ? profileForLayout(dec.meta.layoutFamily) : profile;
+    runAnalyses(dec.buffer, rep, used);
     renderSpectrogram(dec.buffer, rep, specWidth, specHeight, settings);
 
-    // Per-finding close-ups, rendered while the decoded buffer is still alive so the
-    // UI dropdown and the PDF can both show a zoomed view of each defect.
+    // Per-finding close-ups, rendered while the decoded buffer is still alive so the UI
+    // dropdown and the PDF can both show a zoomed view. Rendered for every localised
+    // finding (not just Warn/Fail) so the report's "include all diagrams" option can use them.
     for (std::size_t i = 0; i < rep.issues.size(); ++i) {
         const Issue& is = rep.issues[i];
-        if (!is.localised() || is.severity < Severity::Warn) continue;
+        if (!is.localised()) continue;
         CloseupView cv = renderCloseup(dec.buffer, is, settings);
         if (cv.valid()) {
             cv.issueIndex = static_cast<int>(i);
@@ -73,19 +81,55 @@ Report analyzeFileFull(const std::string& path, int specWidth, int specHeight,
         }
     }
 
-    // Downsampled peak overview for the waveform plot.
+    // Downsampled peak overview for the waveform plot (max across channels), plus a
+    // per-channel overview for the multitrack Channels view.
     const std::size_t pts = 2000;
     const std::size_t n = dec.buffer.frames();
+    const int ch = dec.buffer.channels;
     rep.overview.assign(pts, 0.0f);
+    rep.channelOverviews.assign(ch, std::vector<float>(pts, 0.0f));
     if (n > 0) {
         for (std::size_t p = 0; p < pts; ++p) {
             std::size_t a = n * p / pts, b = n * (p + 1) / pts;
-            float pk = 0.0f;
-            for (std::size_t i = a; i < b; ++i)
-                for (int c = 0; c < dec.buffer.channels; ++c)
-                    pk = std::max(pk, std::fabs(dec.buffer.data[c][i]));
-            rep.overview[p] = pk;
+            float pkAll = 0.0f;
+            for (int c = 0; c < ch; ++c) {
+                float pk = 0.0f;
+                for (std::size_t i = a; i < b; ++i) pk = std::max(pk, std::fabs(dec.buffer.data[c][i]));
+                rep.channelOverviews[c][p] = pk;
+                pkAll = std::max(pkAll, pk);
+            }
+            rep.overview[p] = pkAll;
         }
+    }
+
+    // Per-channel spectrogram strips for the Channels view (skip absurd channel counts).
+    if (ch > 0 && ch <= 32) {
+        rep.chanSpecW = 760;
+        rep.chanSpecH = 64;
+        rep.channelSpecs.resize(ch);
+        for (int c = 0; c < ch; ++c)
+            renderChannelSpectrogram(dec.buffer.data[c], dec.buffer.sampleRate, rep.chanSpecW,
+                                     rep.chanSpecH, settings, rep.channelSpecs[c]);
+    }
+
+    // Stereo phase visuals (goniometer + correlation timeline). Uses the front pair.
+    if (ch >= 2) {
+        renderGoniometer(dec.buffer, 320, rep.goniRGBA);
+        rep.goniW = rep.goniH = 320;
+        computeCorrelation(dec.buffer, rep.correlation);
+    }
+
+    // Per-channel DC-offset bar meter.
+    if (ch > 0 && n > 0) {
+        std::vector<float> dc(ch, 0.0f);
+        for (int c = 0; c < ch; ++c) {
+            double sum = 0;
+            for (float v : dec.buffer.data[c]) sum += v;
+            dc[c] = static_cast<float>(sum / n);
+        }
+        rep.dcMeterW = 360;
+        rep.dcMeterH = std::max(40, ch * 16);
+        renderDcMeter(dc, rep.dcMeterW, rep.dcMeterH, rep.dcMeterRGBA);
     }
     return rep;
 }

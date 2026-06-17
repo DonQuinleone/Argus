@@ -22,6 +22,14 @@ struct CloseupView {
     double minFreq = 0.0;       // Hz at bottom row
     double maxFreq = 0.0;       // Hz at top row
     int scale = 0;              // 0=Mel, 1=Log, 2=Linear (matches FreqScale)
+
+    // Optional waveform overlay (clipping close-ups): per-column peak min/max across the
+    // window plus the detected clip level (linear 0..1). Lets the UI draw the flat-topped
+    // waveform with a horizontal clip-level line. hasWave is false for other findings.
+    bool hasWave = false;
+    std::vector<float> waveMin, waveMax;  // `width` columns each
+    double clipLevel = 0.0;
+
     bool valid() const { return width > 0 && height > 0 && !rgba.empty(); }
 };
 
@@ -31,6 +39,8 @@ struct Report {
     FileMetadata meta;
     std::vector<Issue> issues;
     std::string decodeError;  // non-empty if the file could not be decoded
+    std::string suggestedProfile;  // a better-fitting profile for this file's layout, or ""
+    std::string usedProfileName;   // the profile actually used for this analysis
 
     // Spectrogram raster (RGBA8, row-major, top = high freq). Empty until rendered.
     int specWidth = 0;
@@ -44,6 +54,22 @@ struct Report {
 
     // Downsampled peak-amplitude overview for the waveform plot (~2000 points).
     std::vector<float> overview;
+
+    // Per-channel peak overviews (one ~2000-point envelope per channel) for the multitrack
+    // "Channels" view, plus a small spectrogram raster per channel.
+    std::vector<std::vector<float>> channelOverviews;
+    int chanSpecW = 0, chanSpecH = 0;
+    std::vector<std::vector<unsigned char>> channelSpecs;  // RGBA8 per channel
+
+    // Stereo phase visuals: a goniometer (vectorscope) raster and a per-window correlation
+    // timeline. Empty for mono / when not computed.
+    int goniW = 0, goniH = 0;
+    std::vector<unsigned char> goniRGBA;
+    std::vector<float> correlation;  // inter-channel correlation per ~100 ms window
+
+    // Per-channel DC-offset bar meter raster.
+    int dcMeterW = 0, dcMeterH = 0;
+    std::vector<unsigned char> dcMeterRGBA;
 
     // Per-finding close-up rasters (one per localised Warn/Fail issue).
     std::vector<CloseupView> closeups;

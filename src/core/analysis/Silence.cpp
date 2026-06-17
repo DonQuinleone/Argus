@@ -54,8 +54,12 @@ void analyzeSilence(const AudioBuffer& buf, std::vector<Issue>& out) {
         out.push_back(std::move(is));
     }
 
-    // --- Channel balance / dead channel (stereo+) ---
-    if (ch >= 2) {
+    // --- Channel balance / dead channel ---
+    // A dead channel is a real defect only for a *stereo* deliverable (mono mistakenly
+    // delivered as stereo, or a lost channel). For surround / Atmos, silent channels are
+    // normal (LFE, height or unused object channels), so we report them informationally
+    // rather than failing.
+    if (ch == 2) {
         double maxDb = -300, minDb = 300;
         int deadCount = 0;
         for (int c = 0; c < ch; ++c) {
@@ -80,6 +84,19 @@ void analyzeSilence(const AudioBuffer& buf, std::vector<Issue>& out) {
             is.severity = Severity::Pass;
             is.summary = "Channels reasonably balanced (" + fmt(spread, 1) + " dB spread)";
         }
+        for (int c = 0; c < ch; ++c)
+            is.field("RMS ch " + fmtInt(c), fmtDb(toDb(rms[c])));
+        out.push_back(std::move(is));
+    } else if (ch > 2) {
+        int active = 0, silent = 0;
+        for (int c = 0; c < ch; ++c) (toDb(rms[c]) < kDeadChanDb ? silent : active)++;
+        Issue is;
+        is.check = "Channel balance";
+        is.severity = Severity::Info;
+        is.summary = "Multichannel (" + fmtInt(ch) + " ch): " + fmtInt(active) + " active, " +
+                     fmtInt(silent) + " silent channel(s)";
+        is.detail = "Per-channel levels for a multichannel file. Silent channels are normal in "
+                    "surround / Atmos (LFE, height or unused object channels).";
         for (int c = 0; c < ch; ++c)
             is.field("RMS ch " + fmtInt(c), fmtDb(toDb(rms[c])));
         out.push_back(std::move(is));
