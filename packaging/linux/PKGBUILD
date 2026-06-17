@@ -1,0 +1,29 @@
+# Maintainer: Argus <argus@localhost>
+pkgname=argus
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Audio master QA - defect, loudness and true-peak analysis"
+arch=('x86_64')
+url="https://example.com/argus"
+license=('GPL3')
+depends=('libsndfile' 'glibc' 'gcc-libs' 'libglvnd' 'wayland' 'libxkbcommon' 'libdecor')
+makedepends=('cmake' 'pkgconf' 'git' 'libx11' 'libxrandr' 'libxinerama' 'libxcursor' 'libxi'
+             'wayland' 'wayland-protocols' 'libxkbcommon' 'libdecor')
+optdepends=('ffmpeg: AAC/ALAC (.m4a) decode support')
+# For the AUR, point source at a release tarball and set the real checksum:
+source=("$pkgname-$pkgver.tar.gz::https://example.com/argus/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cmake -S "$srcdir/$pkgname-$pkgver" -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DARGUS_BUILD_GUI=ON
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 "$srcdir/$pkgname-$pkgver/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

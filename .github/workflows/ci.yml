@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so `git describe` yields the version
+
+      # ---------------------------------------------------------------- deps
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ pkg-config file dpkg-dev \
+            libsndfile1-dev libgl1-mesa-dev xorg-dev python3-numpy \
+            libavformat-dev libavcodec-dev libavutil-dev \
+            libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libsndfile
+          pip3 install --break-system-packages numpy || pip3 install numpy
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install libsndfile:x64-windows
+          choco install nsis -y --no-progress
+          python -m pip install numpy
+
+      # ----------------------------------------------------- configure/build
+      - name: Configure & build (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DARGUS_BUILD_GUI=ON
+          cmake --build build -j
+
+      - name: Detector regression tests (Unix)
+        if: runner.os != 'Windows'
+        run: ARGUS="$PWD/build/argus" bash tests/run_tests.sh
+
+      # ----------------------------------------------------------- packaging
+      - name: Package .dmg (macOS)
+        if: runner.os == 'macOS'
+        run: packaging/macos/build-dmg.sh
+
+      - name: Package .deb + AppImage (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          packaging/linux/build-deb.sh
+          packaging/linux/build-appimage.sh
+
+      - name: Build & package installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./packaging/windows/build-windows.ps1
+
+      # ----------------------------------------------------------- artifacts
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: argus-${{ runner.os }}
+          path: dist/*
+          if-no-files-found: warn
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

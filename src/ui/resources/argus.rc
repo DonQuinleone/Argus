@@ -1,0 +1,2 @@
+// Windows resource script: embed the Argus application icon into the executable.
+IDI_ICON1 ICON "argus.ico"
