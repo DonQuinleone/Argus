@@ -46,16 +46,18 @@ void usage(const char* argv0) {
         "Other:\n"
         "  --profile <name|idx> delivery profile for spec checks (default: 0)\n"
         "  --list-profiles      print the built-in delivery profiles and exit\n"
-        "  --spectrogram <ppm>  render the first file's spectrogram to a PPM\n\n"
+        "  --spectrogram <ppm>  render the first file's spectrogram to a PPM\n"
+        "  --spectrogram-png <png>  render the first file's spectrogram to a PNG\n\n"
         "Exit code: 0 clean/info, 1 warnings, 2 failures.\n",
         argv0);
 }
 
 void listProfiles() {
     std::printf("Delivery profiles:\n");
-    const auto& ps = argus::builtinProfiles();
+    const auto ps = argus::allProfiles();
+    const std::size_t builtins = argus::builtinProfiles().size();
     for (std::size_t i = 0; i < ps.size(); ++i)
-        std::printf("  %zu  %s\n", i, ps[i].name.c_str());
+        std::printf("  %zu  %s%s\n", i, ps[i].name.c_str(), i >= builtins ? "  (custom)" : "");
 }
 
 }  // namespace
@@ -66,13 +68,15 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    std::string specOut, pdfDir, csvDir, jsonDir, batchCsv, batchJson, batchPdf, profileName;
+    std::string specOut, specPngOut, pdfDir, csvDir, jsonDir, batchCsv, batchJson, batchPdf,
+        profileName;
     std::vector<std::string> files;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "--help" || a == "-h") { usage(argv[0]); return 0; }
         if (a == "--list-profiles") { listProfiles(); return 0; }
         if (a == "--spectrogram" && i + 1 < argc) { specOut = argv[++i]; continue; }
+        if (a == "--spectrogram-png" && i + 1 < argc) { specPngOut = argv[++i]; continue; }
         if (a == "--pdf" && i + 1 < argc) { pdfDir = argv[++i]; continue; }
         if (a == "--csv" && i + 1 < argc) { csvDir = argv[++i]; continue; }
         if (a == "--json" && i + 1 < argc) { jsonDir = argv[++i]; continue; }
@@ -107,6 +111,18 @@ int main(int argc, char** argv) {
                             specOut.c_str());
             }
         }
+        return 0;
+    }
+
+    // Render the spectrogram of the first file to a PNG.
+    if (!specPngOut.empty() && !files.empty()) {
+        argus::Report rep = argus::analyzeFileFull(files[0], 1200, 512, {}, profile);
+        if (argus::exportSpectrogramPng(rep, specPngOut))
+            std::printf("wrote spectrogram %dx%d to %s\n", rep.specWidth, rep.specHeight,
+                        specPngOut.c_str());
+        else
+            std::fprintf(stderr, "error: could not render spectrogram for '%s'\n",
+                         files[0].c_str());
         return 0;
     }
 

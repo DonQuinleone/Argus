@@ -14,7 +14,8 @@ namespace {
 constexpr double kRatio = 10.0;      // residual must exceed this * local residual RMS
 constexpr float kAbsFloor = 0.01f;   // and this absolute residual (~ -40 dBFS)
 constexpr double kMergeMs = 5.0;     // merge detections closer than this into one event
-constexpr int kMaxReport = 12;       // cap listed locations
+constexpr int kMaxList = 60;         // cap timecodes listed in the report text
+constexpr std::size_t kMaxMarks = 2000;  // cap spectrogram markers
 }  // namespace
 
 void analyzeClicks(const AudioBuffer& buf, std::vector<Issue>& out) {
@@ -62,36 +63,70 @@ void analyzeClicks(const AudioBuffer& buf, std::vector<Issue>& out) {
 
     // Merge detections (across channels) that fall within kMergeMs into single events.
     std::sort(allTimes.begin(), allTimes.end());
-    std::vector<double> clickTimes;
-    long long total = 0;
+    std::vector<double> clickTimes;  // every distinct click
     double lastT = -1e9;
     for (double t : allTimes) {
         if (t - lastT > kMergeMs * 0.001) {
-            ++total;
-            if (static_cast<int>(clickTimes.size()) < kMaxReport) clickTimes.push_back(t);
+            clickTimes.push_back(t);
             lastT = t;
         }
     }
+    const long long total = static_cast<long long>(clickTimes.size());
 
     Issue is;
     is.check = "Clicks";
     if (total == 0) {
         is.severity = Severity::Pass;
         is.summary = "No clicks or impulsive glitches detected";
+        out.push_back(std::move(is));
+        return;
+    }
+
+    // Periodicity: a recurring digital fault clicks at a near-constant interval. Measure
+    // the coefficient of variation of the gaps; low CV with enough clicks => periodic.
+    bool periodic = false;
+    double meanGap = 0.0;
+    if (total >= 4) {
+        std::vector<double> gaps;
+        for (std::size_t i = 1; i < clickTimes.size(); ++i)
+            gaps.push_back(clickTimes[i] - clickTimes[i - 1]);
+        double sum = 0;
+        for (double g : gaps) sum += g;
+        meanGap = sum / gaps.size();
+        double var = 0;
+        for (double g : gaps) var += (g - meanGap) * (g - meanGap);
+        double sd = std::sqrt(var / gaps.size());
+        if (meanGap > 0 && sd / meanGap < 0.15) periodic = true;
+    }
+
+    is.severity = Severity::Warn;
+    is.tStart = clickTimes.front();
+    is.marks = clickTimes;
+    if (is.marks.size() > kMaxMarks) is.marks.resize(kMaxMarks);
+
+    if (periodic) {
+        double hz = meanGap > 0 ? 1.0 / meanGap : 0.0;
+        is.summary = fmtInt(total) + " periodic clicks (every " + fmt(meanGap * 1000.0, 1) +
+                     " ms, ~" + fmt(hz, 1) + " Hz)";
+        is.detail = "Regularly-spaced clicks - the signature of a recurring digital fault (clock/"
+                    "buffer/sync), not a one-off edit. Investigate the source chain.";
+        is.field("Spacing", fmt(meanGap * 1000.0, 1) + " ms (~" + fmt(hz, 1) + " Hz)");
     } else {
-        is.severity = Severity::Warn;
-        is.summary = fmtInt(total) + " click(s) / impulsive glitch(es) detected";
+        is.summary = fmtInt(total) +
+                     (total == 1 ? " isolated click / impulsive glitch detected"
+                                 : " click(s) / impulsive glitch(es) detected");
         is.detail = "Isolated samples jump far from their neighbours - audible as clicks or "
                     "ticks. Often edit points or digital corruption; de-click or repair.";
-        if (!clickTimes.empty()) is.tStart = clickTimes.front();
-        std::string locs;
-        for (std::size_t i = 0; i < clickTimes.size(); ++i) {
-            if (i) locs += ", ";
-            locs += timecode(clickTimes[i]);
-        }
-        is.field("Count", fmtInt(total))
-            .field("First " + fmtInt(static_cast<long long>(clickTimes.size())) + " at", locs);
     }
+    is.field("Count", fmtInt(total));
+    std::string locs;
+    int listed = std::min<int>(kMaxList, static_cast<int>(clickTimes.size()));
+    for (int i = 0; i < listed; ++i) {
+        if (i) locs += ", ";
+        locs += timecode(clickTimes[i]);
+    }
+    if (listed < total) locs += ", … (+" + fmtInt(total - listed) + " more)";
+    is.field("Locations", locs);
     out.push_back(std::move(is));
 }
 

@@ -22,11 +22,11 @@ if(UNIX AND NOT APPLE)
 endif()
 FetchContent_MakeAvailable(glfw)
 
-# Dear ImGui (no CMake of its own; we compile the sources we need).
+# Dear ImGui — docking branch, for multi-viewport (tool windows on other monitors).
 FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.91.5
+    GIT_TAG v1.91.5-docking
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(imgui)
@@ -48,6 +48,7 @@ add_executable(argus-gui
     Texture.cpp
     Player.cpp
     Settings.cpp
+    ImageDecode.cpp
     ${CMAKE_SOURCE_DIR}/third_party/tinyfiledialogs/tinyfiledialogs.c
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_draw.cpp

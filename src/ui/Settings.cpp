@@ -86,11 +86,14 @@ bool loadState(AppState& out) {
         else if (k == "winW") out.winW = vi();
         else if (k == "winH") out.winH = vi();
         else if (k == "listWidth") out.listWidth = vd();
-        else if (k == "listCollapsed") out.listCollapsed = vi() != 0;
         else if (k == "showSettings") out.showSettings = vi() != 0;
         else if (k == "showReportInfo") out.showReportInfo = vi() != 0;
         else if (k == "theme") out.theme = vi();
+        else if (k == "accentR") out.accentR = static_cast<float>(vd());
+        else if (k == "accentG") out.accentG = static_cast<float>(vd());
+        else if (k == "accentB") out.accentB = static_cast<float>(vd());
         else if (k == "profile") out.profile = vi();
+        else if (k == "profileName") out.profileName = dec(v);
         else if (k == "preroll") out.preroll = vd();
         else if (k == "postroll") out.postroll = vd();
         else if (k == "loop") out.loop = vi() != 0;
@@ -111,6 +114,8 @@ bool loadState(AppState& out) {
         else if (k == "qaShowNotes") out.reportInfo.showNotes = vi() != 0;
         else if (k == "qaShowDate") out.reportInfo.showDate = vi() != 0;
         else if (k == "qaShowLogo") out.reportInfo.showLogo = vi() != 0;
+        else if (k == "qaAllDiagrams") out.reportInfo.allDiagrams = vi() != 0;
+        else if (k == "qaOrgLogo") out.reportInfo.orgLogoPath = dec(v);
     }
     return true;
 }
@@ -128,11 +133,14 @@ bool saveState(const AppState& st) {
       << "winW=" << st.winW << "\n"
       << "winH=" << st.winH << "\n"
       << "listWidth=" << st.listWidth << "\n"
-      << "listCollapsed=" << (st.listCollapsed ? 1 : 0) << "\n"
       << "showSettings=" << (st.showSettings ? 1 : 0) << "\n"
       << "showReportInfo=" << (st.showReportInfo ? 1 : 0) << "\n"
       << "theme=" << st.theme << "\n"
+      << "accentR=" << st.accentR << "\n"
+      << "accentG=" << st.accentG << "\n"
+      << "accentB=" << st.accentB << "\n"
       << "profile=" << st.profile << "\n"
+      << "profileName=" << enc(st.profileName) << "\n"
       << "preroll=" << st.preroll << "\n"
       << "postroll=" << st.postroll << "\n"
       << "loop=" << (st.loop ? 1 : 0) << "\n"
@@ -153,7 +161,9 @@ bool saveState(const AppState& st) {
       << "qaShowCatalog=" << (ri.showCatalog ? 1 : 0) << "\n"
       << "qaShowNotes=" << (ri.showNotes ? 1 : 0) << "\n"
       << "qaShowDate=" << (ri.showDate ? 1 : 0) << "\n"
-      << "qaShowLogo=" << (ri.showLogo ? 1 : 0) << "\n";
+      << "qaShowLogo=" << (ri.showLogo ? 1 : 0) << "\n"
+      << "qaAllDiagrams=" << (ri.allDiagrams ? 1 : 0) << "\n"
+      << "qaOrgLogo=" << enc(ri.orgLogoPath) << "\n";
     return true;
 }
 
