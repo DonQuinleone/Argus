@@ -34,6 +34,9 @@ bool exportReportCsv(const Report& rep, const std::string& path) {
     FILE* fp = std::fopen(path.c_str(), "wb");
     if (!fp) return false;
     std::fprintf(fp, "file,check,severity,start,end,channel,summary,detail,technical\n");
+    if (!rep.ok())
+        std::fprintf(fp, "%s,Decode,ERROR,,,,%s,,\n", csvEscape(rep.meta.filename).c_str(),
+                     csvEscape(rep.decodeError).c_str());
     for (const auto& is : rep.issues) {
         std::fprintf(
             fp, "%s,%s,%s,%s,%s,%s,%s,%s,%s\n", csvEscape(rep.meta.filename).c_str(),
