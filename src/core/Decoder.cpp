@@ -554,6 +554,9 @@ void readAdmAndMask(const std::string& path, FileMetadata& m) {
 DecodeResult decodeFile(const std::string& path) {
     DecodeResult r;
     namespace fs = std::filesystem;
+    // Set before any early return so failed files still carry their name in reports.
+    r.meta.path = path;
+    r.meta.filename = fs::path(path).filename().string();
 
     std::error_code ec;
     if (!fs::exists(path, ec)) {
@@ -574,8 +577,6 @@ DecodeResult decodeFile(const std::string& path) {
 
     SubtypeInfo st = subtypeInfo(info.format);
 
-    r.meta.path = path;
-    r.meta.filename = fs::path(path).filename().string();
     r.meta.container = majorFormatName(info.format);
     r.meta.codec = st.codec;
     r.meta.bitDepth = st.bitDepth;
