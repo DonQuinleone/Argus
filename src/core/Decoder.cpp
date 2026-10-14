@@ -391,7 +391,7 @@ void readRiffTags(const std::string& path, TagInfo& t) {
                     if (!val.empty() && val.back() == '\0') val.pop_back();
                     setTag(std::string(sid, 4), latin1ToUtf8(val.c_str()));
                     std::uint32_t adv = ssz + (ssz & 1);
-                    if (adv & 1) f.get();
+                    if (ssz & 1) f.get();  // skip the pad byte after an odd-length value
                     rem -= std::min<std::uint32_t>(rem, 8 + adv);
                 }
             }

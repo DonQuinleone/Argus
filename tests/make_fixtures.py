@@ -84,7 +84,8 @@ def tiny_png(w=96, h=96):
 
 def write_tagged_wav(path, channels, info, id3_frames, cover_png):
     """Write a 24-bit WAV carrying a bext chunk, a RIFF LIST/INFO block, and an ID3v2.3
-    chunk (text frames + an APIC cover) - exercises Argus's embedded-metadata reader."""
+    chunk (text frames + an APIC cover) - exercises Argus's embedded-metadata reader.
+    With id3_frames=None the ID3 chunk is left out, so only RIFF INFO supplies tags."""
     pcm = pack24(channels)
     n = len(channels)
 
@@ -118,7 +119,7 @@ def write_tagged_wav(path, channels, info, id3_frames, cover_png):
         return b'TXXX' + struct.pack('>I', len(body)) + b'\x00\x00' + body
 
     frames = b''
-    for fid, text in id3_frames:
+    for fid, text in id3_frames or []:
         frames += id3_txxx(fid[4:], text) if fid.startswith('TXXX') else id3_text(fid.encode(), text)
     apic = b'\x00' + b'image/png' + b'\x00' + b'\x03' + b'Cover\x00' + cover_png
     frames += b'APIC' + struct.pack('>I', len(apic)) + b'\x00\x00' + apic
@@ -130,7 +131,7 @@ def write_tagged_wav(path, channels, info, id3_frames, cover_png):
     def ck(tag, data):
         return tag + struct.pack('<I', len(data)) + even(data)
     body = (b'WAVE' + ck(b'fmt ', fmt) + ck(b'bext', bext) + ck(b'data', pcm) +
-            ck(b'LIST', info_body) + ck(b'id3 ', id3))
+            ck(b'LIST', info_body) + (ck(b'id3 ', id3) if id3_frames is not None else b''))
     out = b'RIFF' + struct.pack('<I', len(body)) + body
     with open(path, 'wb') as f:
         f.write(out)
@@ -238,6 +239,13 @@ def main(outdir):
                     ('TCON', 'Test'), ('TRCK', '01'), ('TYER', '2026'),
                     ('TXXXISRC', 'GBTEST2600001'), ('TXXXEngineer', 'Test Engineer')],
         cover_png=tiny_png())
+
+    # 12b. RIFF INFO only, with odd-length values: each is followed by a pad byte that
+    #      the reader must skip, or every later tag is read out of step.
+    write_tagged_wav(
+        os.path.join(outdir, 'info_only.wav'), [md.copy(), md.copy()],
+        info=[('IART', 'Argo'), ('IGNR', 'Jazz'), ('ICRD', '2026')],
+        id3_frames=None, cover_png=b'')
 
     # 13. Multichannel (5.1) surround - one height/surround channel left silent on purpose.
     #     Must classify as surround, never FAIL on channel count or "dead channel".

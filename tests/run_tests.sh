@@ -65,6 +65,17 @@ else
   echo "  FAIL  embedded tags + artwork parsed"; fail=$((fail+1))
 fi
 
+# RIFF INFO only, odd-length values: tags after the first must survive the pad bytes.
+infojson="$FX/info_only_QA.json"
+rm -f "$infojson"
+"$ARGUS" --json "$FX" "$FX/info_only.wav" >/dev/null 2>&1
+if grep -q '"Genre":"Jazz"' "$infojson" 2>/dev/null && \
+   grep -q '"Date":"2026"' "$infojson" 2>/dev/null; then
+  echo "  PASS  RIFF INFO pad bytes skipped"; pass=$((pass+1))
+else
+  echo "  FAIL  RIFF INFO pad bytes skipped"; fail=$((fail+1))
+fi
+
 echo
 echo "Results: $pass passed, $fail failed"
 [[ $fail -eq 0 ]]
