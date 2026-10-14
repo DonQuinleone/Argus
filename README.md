@@ -262,10 +262,15 @@ clean while still catching genuine glitches.
 
 ## Tests
 
+Needs Python 3 with numpy. From the repository root, after building:
+
 ```bash
-python3 tests/make_fixtures.py /tmp/argus_fixtures   # synthesise defect fixtures
-ARGUS=build/argus tests/run_tests.sh                 # assert each detector fires
+tests/run_tests.sh                                   # synthesise fixtures, assert each detector fires
+ARGUS=path/to/argus FX=/tmp/fx tests/run_tests.sh    # custom binary / fixture directory
 ```
+
+`run_tests.sh` generates the fixtures itself (into `/tmp/argus_fixtures` by default); run
+`python3 tests/make_fixtures.py <dir>` directly only to inspect them.
 
 ## Project layout
 
