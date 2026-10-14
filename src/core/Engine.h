@@ -21,7 +21,7 @@ Report analyzeFileFull(const std::string& path, int specWidth, int specHeight,
                        const Profile& profile = defaultProfile(), bool autoProfile = false);
 
 // Expand a path into the set of analysable audio files (single file, or all
-// supported audio files directly inside a directory). Sorted by name.
+// supported audio files anywhere under a directory, searched recursively). Sorted by name.
 std::vector<std::string> collectInputs(const std::string& path);
 
 }  // namespace argus
