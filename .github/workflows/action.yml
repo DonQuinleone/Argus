@@ -1,0 +1,56 @@
+name: Action
+
+# Exercise the Argus GitHub Action (action.yml) end to end on the synthetic fixtures.
+on:
+  pull_request:
+    paths: [action.yml, tools/github_action.py, .github/workflows/action.yml]
+  push:
+    branches: [master]
+    paths: [action.yml, tools/github_action.py, .github/workflows/action.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Generate fixtures
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-numpy >/dev/null
+          python3 tests/make_fixtures.py fixtures >/dev/null
+
+      - name: Run the action (non-blocking)
+        id: argus
+        uses: ./
+        with:
+          paths: fixtures
+          changed-only: 'false'
+          fail-on: never
+
+      - name: Run the action (blocking on failures)
+        id: blocking
+        continue-on-error: true
+        uses: ./
+        with:
+          paths: fixtures
+          changed-only: 'false'
+          check-run: 'false'
+          fail-on: fail
+
+      - name: Check the outputs
+        env:
+          FILES: ${{ steps.argus.outputs.files }}
+          FAILED: ${{ steps.argus.outputs.failed }}
+          CONCLUSION: ${{ steps.argus.outputs.conclusion }}
+          BLOCKING_OUTCOME: ${{ steps.blocking.outcome }}
+        run: |
+          echo "files=$FILES failed=$FAILED conclusion=$CONCLUSION blocking=$BLOCKING_OUTCOME"
+          # The fixtures include deliberate defects: fail-on never reports them without failing,
+          # fail-on fail fails the step.
+          [ "$FILES" -ge 10 ] && [ "$FAILED" -ge 1 ] && [ "$CONCLUSION" = neutral ]
+          [ "$BLOCKING_OUTCOME" = failure ]

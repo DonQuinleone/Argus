@@ -240,6 +240,37 @@ ARGUS_QA_CLIENT="Cadenza Records" ARGUS_QA_PROJECT="Nocturnes, Vol. II" \
 
 (Also: `ARGUS_QA_CONTACT`, `ARGUS_QA_CATALOG`, `ARGUS_QA_NOTES`.)
 
+### GitHub Action
+
+Argus can check the audio in any repository on GitHub. On a pull request it checks the
+audio files the pull request adds or changes and publishes an **Argus audio QA** check run
+through the Checks API: a per-file summary, plus an annotation on each file for every
+warning or failure (with its timecode). It runs on Linux runners and builds the CLI from
+source on first use, then caches it.
+
+```yaml
+on: pull_request
+permissions:
+  contents: read
+  checks: write        # lets the action publish its check run
+jobs:
+  audio-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DonQuinleone/Argus@master
+        with:
+          paths: masters          # files or folders to check (default: the whole repo)
+          profile: streaming      # delivery profile name or index (optional)
+          fail-on: fail           # fail, warn or never
+```
+
+Other inputs: `changed-only` (default `true`: on pull requests, only changed files),
+`check-run` (default `true`) and `github-token`. Outputs: `files`, `failed`, `warned`,
+`conclusion` and `check-run-url`. Without `checks: write` (for example on pull requests from
+forks) the findings appear as workflow annotations instead, and the job summary always
+carries the table.
+
 ## How dropout detection works
 
 A dropped/missing frame punches a *broadband hole* in the audio: the level collapses
