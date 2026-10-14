@@ -223,6 +223,7 @@ argus --batch-json <file> <dir>                   # one JSON document for the ba
 argus --batch-pdf  <file> <dir>                   # one combined PDF for the batch
 argus --profile <name|index> ...                  # delivery profile for spec checks
 argus --list-profiles                             # show the built‑in + custom profiles
+argus --spectrogram <file> <input>                # render the spectrogram to a PPM
 argus --spectrogram-png <file> <input>            # render the spectrogram to a PNG
 ```
 
