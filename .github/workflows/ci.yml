@@ -7,6 +7,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only token by default; the release job asks for contents: write itself.
+permissions:
+  contents: read
+
+# A newer push to the same pull request supersedes the running matrix. Pushes to
+# master and tags always run to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     name: ${{ matrix.os }}
