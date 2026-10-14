@@ -9,7 +9,7 @@ namespace argus {
 // defaults reimplement adm_preflight.sh: LPCM, 24-bit, stereo, approved rates.)
 namespace {
 std::string humanBytes(std::uint64_t bytes) {
-    const char* units[] = {"B", "KB", "MB", "GB"};
+    const char* units[] = {"B", "KiB", "MiB", "GiB"};  // binary (1024) multiples
     double v = static_cast<double>(bytes);
     int u = 0;
     while (v >= 1024.0 && u < 3) {
