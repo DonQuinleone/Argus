@@ -76,6 +76,25 @@ std::vector<int> ratesFromStr(const std::string& v) {
     return out;
 }
 
+// Target layout as a stable keyword; files written before this key existed have no
+// "layout=" line and keep the Profile default (stereo).
+const char* layoutToStr(TargetLayout l) {
+    switch (l) {
+        case TargetLayout::Any: return "any";
+        case TargetLayout::Surround: return "surround";
+        case TargetLayout::Atmos: return "atmos";
+        case TargetLayout::Stereo: break;
+    }
+    return "stereo";
+}
+
+TargetLayout layoutFromStr(const std::string& s) {
+    if (s == "any") return TargetLayout::Any;
+    if (s == "surround") return TargetLayout::Surround;
+    if (s == "atmos") return TargetLayout::Atmos;
+    return TargetLayout::Stereo;
+}
+
 }  // namespace
 
 std::string customProfilesPath() {
@@ -122,6 +141,7 @@ std::vector<Profile> loadCustomProfiles() {
         else if (k == "checkLufs") cur.checkLoudnessTarget = vi() != 0;
         else if (k == "lufsTarget") cur.lufsTarget = vd();
         else if (k == "lufsTol") cur.lufsTolerance = vd();
+        else if (k == "layout") cur.targetLayout = layoutFromStr(v);
     }
     flush();
     return out;
@@ -142,7 +162,8 @@ bool saveCustomProfiles(const std::vector<Profile>& profiles) {
           << "enforceTP=" << (p.enforceTruePeak ? 1 : 0) << "\n"
           << "checkLufs=" << (p.checkLoudnessTarget ? 1 : 0) << "\n"
           << "lufsTarget=" << p.lufsTarget << "\n"
-          << "lufsTol=" << p.lufsTolerance << "\n";
+          << "lufsTol=" << p.lufsTolerance << "\n"
+          << "layout=" << layoutToStr(p.targetLayout) << "\n";
     }
     return true;
 }
