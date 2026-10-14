@@ -125,7 +125,7 @@ void analyzeClicks(const AudioBuffer& buf, std::vector<Issue>& out) {
         if (i) locs += ", ";
         locs += timecode(clickTimes[i]);
     }
-    if (listed < total) locs += ", … (+" + fmtInt(total - listed) + " more)";
+    if (listed < total) locs += ", ... (+" + fmtInt(total - listed) + " more)";
     is.field("Locations", locs);
     out.push_back(std::move(is));
 }
