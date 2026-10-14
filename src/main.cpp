@@ -45,7 +45,7 @@ void usage(const char* argv0) {
         "  --batch-pdf <file>   write one combined PDF for the whole batch\n\n"
         "Other:\n"
         "  --profile <name|idx> delivery profile for spec checks (default: 0)\n"
-        "  --list-profiles      print the built-in delivery profiles and exit\n"
+        "  --list-profiles      print the built-in and custom delivery profiles and exit\n"
         "  --spectrogram <ppm>  render the first file's spectrogram to a PPM\n"
         "  --spectrogram-png <png>  render the first file's spectrogram to a PNG\n\n"
         "Exit code: 0 clean/info, 1 warnings, 2 failures.\n",
