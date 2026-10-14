@@ -102,6 +102,8 @@ void analyzeLoudness(const AudioBuffer& buf, const Profile& profile, std::vector
         is.field("True peak", fmt(tpDb, 2) + " dBTP");
         if (profile.enforceTruePeak)
             is.field("Ceiling", fmt(ceil, 1) + " dBTP").field("Headroom", fmt(ceil - tpDb, 2) + " dB");
+        else  // no ceiling to enforce: report headroom to full scale, informationally
+            is.field("Headroom", fmt(-tpDb, 2) + " dB to 0 dBTP");
         if (tpDb > 0.0) {
             // Actual full-scale overs are a real defect regardless of profile.
             is.severity = Severity::Fail;
