@@ -71,7 +71,7 @@ struct Report {
     int dcMeterW = 0, dcMeterH = 0;
     std::vector<unsigned char> dcMeterRGBA;
 
-    // Per-finding close-up rasters (one per localised Warn/Fail issue).
+    // Per-finding close-up rasters (one per localised issue, whatever its severity).
     std::vector<CloseupView> closeups;
 
     // The close-up for issue `issueIndex`, or nullptr if none was rendered.
