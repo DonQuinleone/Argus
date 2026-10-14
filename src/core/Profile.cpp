@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 
 #include "ProfileStore.h"
 
@@ -136,8 +137,12 @@ Profile profileByName(const std::string& nameOrIndex) {
         std::all_of(nameOrIndex.begin(), nameOrIndex.end(), [](unsigned char c) {
             return std::isdigit(c);
         })) {
-        int idx = std::stoi(nameOrIndex);
-        if (idx >= 0 && idx < static_cast<int>(profiles.size())) return profiles[idx];
+        // from_chars reports overflow instead of throwing (std::stoi would abort on
+        // an index like 99999999999).
+        std::size_t idx = 0;
+        const auto [ptr, ec] = std::from_chars(
+            nameOrIndex.data(), nameOrIndex.data() + nameOrIndex.size(), idx);
+        if (ec == std::errc() && idx < profiles.size()) return profiles[idx];
         return defaultProfile();
     }
     auto lower = [](std::string s) {
