@@ -47,6 +47,14 @@ std::string num(double v) {
     return b;
 }
 
+// Media positions in seconds: fixed microsecond precision, so long files (a %.6g
+// "1234.57" loses the milliseconds) keep sample-accurate-enough timestamps.
+std::string secs(double v) {
+    char b[48];
+    std::snprintf(b, sizeof(b), "%.6f", v);
+    return b;
+}
+
 std::string numi(long long v) {
     char b[32];
     std::snprintf(b, sizeof(b), "%lld", v);
@@ -91,7 +99,7 @@ std::string reportObject(const Report& rep) {
     o += q("sampleRate") + ":" + numi(rep.meta.sampleRate) + ",";
     o += q("bitDepth") + ":" + numi(rep.meta.bitDepth) + ",";
     o += q("channels") + ":" + numi(rep.meta.channels) + ",";
-    o += q("durationSec") + ":" + num(rep.meta.durationSec) + ",";
+    o += q("durationSec") + ":" + secs(rep.meta.durationSec) + ",";
     o += q("frames") + ":" + numi(static_cast<long long>(rep.meta.frames)) + ",";
     o += q("fileBytes") + ":" + numi(static_cast<long long>(rep.meta.fileBytes));
     const BroadcastInfo& bi = rep.meta.broadcast;
@@ -183,8 +191,8 @@ std::string reportObject(const Report& rep) {
         if (!is.detail.empty()) o += "," + kv("detail", is.detail);
         if (is.channel >= 0) o += "," + q("channel") + ":" + numi(is.channel);
         if (is.localised()) {
-            o += "," + q("startSec") + ":" + num(is.tStart);
-            if (is.tEnd > is.tStart) o += "," + q("endSec") + ":" + num(is.tEnd);
+            o += "," + q("startSec") + ":" + secs(is.tStart);
+            if (is.tEnd > is.tStart) o += "," + q("endSec") + ":" + secs(is.tEnd);
         }
         if (!is.fields.empty()) {
             o += "," + q("fields") + ":{";
