@@ -43,7 +43,7 @@ JSON** report you can hand straight to a recording engineer or wire into CI.
   Dolby Atmos, or a permissive spec; **auto‑picked per file** from the detected layout and
   overridable, with custom user profiles saved to disk.
 - 🖊️ **QA sign‑off details** — stamp the QA engineer, studio, client, project,
-  catalog number and notes onto every PDF, with your **company logo** in the header
+  catalogue number and notes onto every PDF, with your **company logo** in the header
   (Argus moves to the footer) and an option to embed **every diagram**, not just warn/fail.
 - 🎨 **Modern desktop UI** — customisable **accent colour** + light/dark themes,
   per‑finding **goniometer / DC‑meter / clipping** diagrams, and tool windows you can pop
@@ -294,6 +294,6 @@ Ideas under consideration for future releases:
 - A‑B / reference comparison between two versions of a master.
 - Watch‑folder mode that auto‑QAs files dropped into a directory.
 
-## License
+## Licence
 
 Argus is released under the **GNU General Public License v3.0** — see [LICENSE](LICENSE).
