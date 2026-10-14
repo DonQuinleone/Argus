@@ -156,7 +156,9 @@ void analyzeDropouts(const AudioBuffer& buf, std::vector<Issue>& out) {
             if (!sharpEdges) { i = j; continue; }
 
             double tStart = full.timeAt(i);
-            double tEnd = full.timeAt(j - 1);
+            // timeAt() is a frame centre, so the last frame's centre falls one hop short of
+            // the hole's end; derive End from the duration so the two agree.
+            double tEnd = tStart + durMs / 1000.0;
 
             Issue is;
             is.check = "Dropout";
