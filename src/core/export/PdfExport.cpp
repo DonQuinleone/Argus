@@ -473,7 +473,6 @@ static void renderReportBody(Builder& b, const Report& rep, const ReportInfo& in
     b.line("FINDINGS", kMargin, 9, kMuted, true);
     for (std::size_t i = 0; i < rep.issues.size(); ++i) {
         const Issue& is = rep.issues[i];
-        Rgb c = severityRgb(is.severity);
         b.ensure(16);
         double y = b.yTop;
         b.chip(kMargin, y, is.severity);
