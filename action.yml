@@ -1,0 +1,97 @@
+name: Argus audio QA
+description: >-
+  Check audio masters for dropouts, clicks, clipping, true-peak and loudness problems
+  and report the findings on the commit or pull request.
+author: DonQuinleone
+branding:
+  icon: headphones
+  color: blue
+
+inputs:
+  paths:
+    description: Space-separated files or directories to check (directories are searched recursively).
+    default: .
+  profile:
+    description: Delivery profile name or index (see `argus --list-profiles`). Empty means the default.
+    default: ''
+  fail-on:
+    description: Fail the step on `fail` findings, on `warn` and above, or `never`.
+    default: fail
+  changed-only:
+    description: On pull requests, only check audio files the pull request adds or changes.
+    default: 'true'
+  check-run:
+    description: "Publish an \"Argus audio QA\" check run with annotations (needs `checks: write`)."
+    default: 'true'
+  github-token:
+    description: Token for the GitHub API.
+    default: ${{ github.token }}
+
+outputs:
+  files:
+    description: Number of audio files checked.
+    value: ${{ steps.argus.outputs.files }}
+  failed:
+    description: Files with failures or decode errors.
+    value: ${{ steps.argus.outputs.failed }}
+  warned:
+    description: Files with warnings only.
+    value: ${{ steps.argus.outputs.warned }}
+  conclusion:
+    description: success, neutral, failure or skipped.
+    value: ${{ steps.argus.outputs.conclusion }}
+  check-run-url:
+    description: Link to the check run, when one was created.
+    value: ${{ steps.argus.outputs.check-run-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the runner
+      if: runner.os != 'Linux'
+      shell: bash
+      run: |
+        echo "::error::The Argus action supports Linux runners only."
+        exit 1
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq cmake g++ pkg-config libsndfile1-dev \
+          libavformat-dev libavcodec-dev libavutil-dev >/dev/null
+
+    - name: Fingerprint the Argus sources
+      id: key
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        sum=$(find CMakeLists.txt src third_party -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
+        echo "key=argus-cli-${{ runner.os }}-${{ runner.arch }}-$sum" >> "$GITHUB_OUTPUT"
+
+    - name: Restore the Argus build
+      id: cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+      with:
+        path: ${{ runner.temp }}/argus-build/argus
+        key: ${{ steps.key.outputs.key }}
+
+    - name: Build Argus
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        cmake -S "$GITHUB_ACTION_PATH" -B "$RUNNER_TEMP/argus-build" -DCMAKE_BUILD_TYPE=Release >/dev/null
+        cmake --build "$RUNNER_TEMP/argus-build" --target argus -j "$(nproc)"
+
+    - name: Run Argus
+      id: argus
+      shell: bash
+      env:
+        ARGUS_BIN: ${{ runner.temp }}/argus-build/argus
+        INPUT_PATHS: ${{ inputs.paths }}
+        INPUT_PROFILE: ${{ inputs.profile }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_CHANGED_ONLY: ${{ inputs.changed-only }}
+        INPUT_CHECK_RUN: ${{ inputs.check-run }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: python3 "$GITHUB_ACTION_PATH/tools/github_action.py"
